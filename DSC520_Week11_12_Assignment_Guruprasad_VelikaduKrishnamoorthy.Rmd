@@ -1,0 +1,546 @@
+---
+title: "DSC520_Week11_12_Assignment_Guruprasad_VelikaduKrishnamoorthy"
+author: "Guruprasad Velikadu Krishnamoorthy"
+date: "2023-03-04"
+output:
+  pdf_document: 
+    highlight: espresso
+    toc: yes
+  html_document:
+    df_print: paged
+---
+
+\newpage
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "C:/Users/Gurup/GURU/Learning/Masters/Term_2/DSC520_T302_Statistics_for_Data_Science/Week_11/data")
+knitr::opts_chunk$set(tidy.opts = list(width.cutoff = 100), tidy = TRUE)
+```
+```{r include=TRUE,message=FALSE}
+# Importing the libraries
+library(foreign)
+library(caTools)
+library(dplyr)
+library(kableExtra)
+library(ggplot2)
+library(tidyverse)
+library(stats)
+library(class)
+library(factoextra)
+library(dplyr)
+library(ClusterR)
+library(cluster)
+library(scales)
+```
+# 1. Machine Learning Assignment
+
+## e.i. Plot the data from each dataset using a scatter plot.
+```{r}
+bin_clas_df <- read.csv("binary-classifier-data.csv")
+kbl(head(bin_clas_df),caption = "Binary Classification Dataset", booktabs = T) %>% kable_styling(latex_options = c("striped", "hold_position"))
+str(bin_clas_df)
+
+ggplot(data=bin_clas_df,aes(x=x,y=y))+geom_point(color="blue")+ggtitle("Scatter plot for Binary Classifier Dataset")
+```
+
+
+## e.ii. The k nearest neighbors algorithm categorizes an input value by looking at the labels for the k nearest points and assigning a category based on the most common label. In this problem, you will determine which points are nearest by calculating the Euclidean distance between two points. As a refresher, the Euclidean distance between two points:
+
+```{r}
+# Manual formula to calculate the euclidean distance between 2 points
+euclidean_dist <- function(x1, y1,x2,y2) sqrt(sum((x1-x2)^2,(y1-y2)^2))
+x1 <- 70.8846909680027
+y1 <- 83.1770155691131
+x2 <- 74.97176322832
+y2 <- 87.9292174061896
+euclidean_dist(x1,y1,x2,y2)
+
+#Calculating euclidean distance between 2 arrays/ vectors:
+
+euclidean_dist2 <- function(x, y) sqrt(sum((x - y)^2))
+
+euclidean_dist2(bin_clas_df$x,bin_clas_df$y)
+```
+
+## e.iii.Fitting a model is when you use the input data to create a predictive model. There are various metrics you can use to determine how well your model fits the data. For this problem, you will focus on a single metric, accuracy. Accuracy is simply the percentage of how often the model predicts the correct result. If the model always predicts the correct result, it is 100% accurate. If the model always predicts the incorrect result, it is 0% accurate.
+## iv.Fit a k nearest neighbors’ model for each dataset for k=3, k=5, k=10, k=15, k=20, and k=25. Compute the accuracy of the resulting models for each value of k. Plot the results in a graph where the x-axis is the different values of k and the y-axis is the accuracy of the model.
+
+***K- Nearest neighbors on bin_clas_df***
+
+```{r}
+# Scaling the data
+bin_class_row_labels <- bin_clas_df[,1]
+
+bin_clas_df[,c(2:3)] <- scale(bin_clas_df[,c(2:3)])
+# set seed
+set.seed(50)
+# get the size
+size_bin_class <- floor(0.8*nrow(bin_clas_df))
+
+train_bin_class_id <- sample(seq_len(nrow(bin_clas_df)),size=size_bin_class)
+train_bin_class_labels <- bin_clas_df[train_bin_class_id,1]
+
+test_bin_class_labels <- bin_class_row_labels[-train_bin_class_id]
+
+# Training the data
+data_train_bin_class <- bin_clas_df[train_bin_class_id,2:3]
+nrow(data_train_bin_class)
+# Testing data
+data_test_bin_class <- bin_clas_df[-train_bin_class_id,2:3]
+nrow(data_test_bin_class)
+
+
+# Function to check the accuracy
+accuracy <-    function( matrix ){
+    sum( diag( x = matrix ) / sum( rowSums( x = matrix )) ) * 100.0
+}
+
+# Creating Dataframe to store the Accuracy results
+bin_clas_accuracy_df <- data.frame(NA,NA)
+names(bin_clas_accuracy_df) <- c("k","accuracy")
+
+```
+
+```{r}
+# As an example, the procedure is demonstrated for k=3. Rest are all calculated using reusable function.
+prediction_bin_class_3 <- knn(train = data_train_bin_class,
+                   test = data_test_bin_class,
+                   cl = train_bin_class_labels,
+                   k= 3)
+
+
+#create confusion matrix
+confmatrix_bin_class_3 <- table( prediction_bin_class_3, test_bin_class_labels ) 
+
+accuracy_bin_class_3 <- round( accuracy( confmatrix_bin_class_3 ) , digits = 2 )
+
+print( paste('accuracy_bin_class_3 ' , accuracy_bin_class_3) )
+
+plot_pred_bin_class_3 <- data.frame(
+    data_test_bin_class$x,
+    data_test_bin_class$y,
+    predicted = prediction_bin_class_3)
+
+colnames(plot_pred_bin_class_3) <- c("x",
+                                "y",
+                                'predicted')
+
+plot_bin_class_3 <- ggplot(plot_pred_bin_class_3, aes(x, y, color = predicted, fill = predicted)) + 
+    geom_point(size = 2,alpha=0.5) + 
+    geom_text(aes(label=test_bin_class_labels),hjust=1, vjust=2,size=3) +
+    ggtitle("Predicted relationship between x and y for K=3 for Binary class dataset") +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    theme(legend.position = "none")
+
+plot_bin_class_3
+```
+
+Below method will be used to calculate the knn using reusable function.
+```{r}
+# Function to calculate the knn based on the value of K
+calculate_knn <- function(data_train,data_test,train_labels,test_labels,k=3)
+{
+    prediction_bin_class <- knn(train = data_train,
+                                  test = data_test,
+                                  cl = train_labels,
+                                  k= k)
+    
+    ##create confusion matrix
+    confmatrix_bin_class <- table( prediction_bin_class, test_labels ) 
+    accuracy_bin_class <- round( accuracy( confmatrix_bin_class ) , digits = 2 )
+    
+    print( paste('accuracy for K=',k, accuracy_bin_class) )
+    
+    return (accuracy_bin_class)
+   
+}
+
+# K=3
+accuracy_bin_class=calculate_knn(data_train_bin_class,data_test_bin_class,train_bin_class_labels,test_bin_class_labels,3)
+bin_clas_accuracy_df <- rbind(bin_clas_accuracy_df,data.frame(k=3,accuracy=accuracy_bin_class))
+
+# k=5
+accuracy_bin_class=calculate_knn(data_train_bin_class,data_test_bin_class,train_bin_class_labels,test_bin_class_labels,5)
+bin_clas_accuracy_df <- rbind(bin_clas_accuracy_df,data.frame(k=5,accuracy=accuracy_bin_class))
+
+# k=10
+accuracy_bin_class=calculate_knn(data_train_bin_class,data_test_bin_class,train_bin_class_labels,test_bin_class_labels,10)
+bin_clas_accuracy_df <- rbind(bin_clas_accuracy_df,data.frame(k=10,accuracy=accuracy_bin_class))
+
+# k=15
+accuracy_bin_class=calculate_knn(data_train_bin_class,data_test_bin_class,train_bin_class_labels,test_bin_class_labels,15)
+bin_clas_accuracy_df <- rbind(bin_clas_accuracy_df,data.frame(k=15,accuracy=accuracy_bin_class))
+
+# k=20
+accuracy_bin_class=calculate_knn(data_train_bin_class,data_test_bin_class,train_bin_class_labels,test_bin_class_labels,20)
+bin_clas_accuracy_df <- rbind(bin_clas_accuracy_df,data.frame(k=20,accuracy=accuracy_bin_class))
+
+# k=25
+accuracy_bin_class=calculate_knn(data_train_bin_class,data_test_bin_class,train_bin_class_labels,test_bin_class_labels,25)
+bin_clas_accuracy_df <- rbind(bin_clas_accuracy_df,data.frame(k=25,accuracy=accuracy_bin_class))
+
+bin_clas_accuracy_df <- na.omit(bin_clas_accuracy_df)
+kbl(bin_clas_accuracy_df,caption = "Accuracy of Binary Classification Dataset", booktabs = T) %>% kable_styling(latex_options = c("striped", "hold_position"))
+
+# Plotting k vs accuracy plot
+bin_clas_accuracy_df %>% ggplot(aes(x=k,y=accuracy))+geom_line(color="blue")+geom_point(shape=16,color="red",size=4)+ggtitle("K vs Accuracy for K-Nearest Neighbors Algorithm of Binary Classifier dataset")
+#Solution:  The results indicate that model has maximum accuracy at k=3
+```
+
+***Loading the Trinary Classifier Data***
+
+```{r}
+
+trin_clas_df=read.csv("trinary-classifier-data.csv")
+
+ggplot(data=trin_clas_df,aes(x=x,y=y))+geom_point(color="blue")+ggtitle("Scatter plot for Trinary Classifier Dataset")
+str(trin_clas_df)
+trin_clas_df$label <- as.factor(trin_clas_df$label)
+
+
+# K- Nearest neighbors on trin_clas_df
+
+# Scaling the data
+trin_class_row_labels <- trin_clas_df[,1]
+
+trin_clas_df[,c(2:3)] <- scale(trin_clas_df[,c(2:3)])
+# set seed
+set.seed(40)
+# get the size
+size_trin_class <- floor(0.8*nrow(trin_clas_df))
+
+train_trin_class_id <- sample(seq_len(nrow(trin_clas_df)),size=size_trin_class)
+train_trin_class_labels <- trin_clas_df[train_trin_class_id,1]
+
+test_trin_class_labels <- trin_class_row_labels[-train_trin_class_id]
+
+# Training the data
+data_train_trin_class <- trin_clas_df[train_trin_class_id,2:3]
+
+# Testing data
+data_test_trin_class <- trin_clas_df[-train_trin_class_id,2:3]
+nrow(data_test_trin_class)
+
+# Creating Dataframe to store the Accuracy results
+trin_clas_accuracy_df <- data.frame(NA,NA)
+names(trin_clas_accuracy_df) <- c("k","accuracy")
+
+
+# Using reusable Function to calculate the knn based on the value of K
+
+# K=3
+accuracy_trin_class=calculate_knn(data_train_trin_class,data_test_trin_class,train_trin_class_labels,test_trin_class_labels,3)
+trin_clas_accuracy_df <- rbind(trin_clas_accuracy_df,data.frame(k=3,accuracy=accuracy_trin_class))
+
+# K=5
+accuracy_trin_class=calculate_knn(data_train_trin_class,data_test_trin_class,train_trin_class_labels,test_trin_class_labels,5)
+trin_clas_accuracy_df <- rbind(trin_clas_accuracy_df,data.frame(k=5,accuracy=accuracy_trin_class))
+
+# K=10
+accuracy_trin_class=calculate_knn(data_train_trin_class,data_test_trin_class,train_trin_class_labels,test_trin_class_labels,10)
+trin_clas_accuracy_df <- rbind(trin_clas_accuracy_df,data.frame(k=10,accuracy=accuracy_trin_class))
+
+# K=15
+accuracy_trin_class=calculate_knn(data_train_trin_class,data_test_trin_class,train_trin_class_labels,test_trin_class_labels,15)
+trin_clas_accuracy_df <- rbind(trin_clas_accuracy_df,data.frame(k=15,accuracy=accuracy_trin_class))
+
+# K=20
+accuracy_trin_class=calculate_knn(data_train_trin_class,data_test_trin_class,train_trin_class_labels,test_trin_class_labels,20)
+trin_clas_accuracy_df <- rbind(trin_clas_accuracy_df,data.frame(k=20,accuracy=accuracy_trin_class))
+
+
+# K=25
+accuracy_trin_class=calculate_knn(data_train_trin_class,data_test_trin_class,train_trin_class_labels,test_trin_class_labels,25)
+trin_clas_accuracy_df <- rbind(trin_clas_accuracy_df,data.frame(k=25,accuracy=accuracy_trin_class))
+
+trin_clas_accuracy_df <- na.omit(trin_clas_accuracy_df)
+kbl(trin_clas_accuracy_df,caption = "Accuracy of Trinary Classification Dataset", booktabs = T) %>% kable_styling(latex_options = c("striped", "hold_position"))
+
+# Plotting k vs accuracy plot
+trin_clas_accuracy_df %>% ggplot(aes(x=k,y=accuracy))+geom_line(color="blue")+geom_point(shape=16,color="red",
+                                                                    size=4)+
+    ggtitle("K vs Accuracy for K-Nearest Neighbors Algorithm of Trinary Classifier dataset")
+
+# Results indicate that the model had maximum accuracy for k=5
+```
+
+## e.v.Looking back at the plots of the data, do you think a linear classifier would work well on these datasets?
+```{r}
+bin_clas_lm <- lm(label~x+y,data=bin_clas_df)
+summary(bin_clas_lm)
+
+# Solution: Looking at the plot, the points are not linearly distributed and hence linear classifier will not work for this data.Also for the dataset where the "label" is a factor, Linear classification model will not be appropriate.plotting the model with x and y, we can find that the value of R2 is only 0.015 which it accounts for only 1.5% of the variance in the data which is very low and hence Linear classifier is not appropriate for this dataset.
+```
+
+## e.vi. How does the accuracy of your logistic regression classifier from last week compare?  Why is the accuracy different between these two methods?
+```{r}
+# Solution: The accuracy of the KNN model turned out to be lot higher than the Logistic regression which was only about 57%. The reason behind the higher accuracy in KNN is because the predictions mostly depends on the distance measure. The Data point will be classified based on how closely it resembles the dataset. Also the data was scaled using the scale function, which normalized the data which was not done in Logistic regression. Different values of k were tried and the best results were seen for k=3 for binary classifer dataset.
+```
+
+ 
+ 
+ 
+# 2. Clustering
+## d. i. Plot the dataset using a scatter plot.
+```{r}
+# i. Plot the dataset using a scatter plot.
+
+cluster_df <- read.csv("clustering-data.csv")
+
+ggplot(data=cluster_df,aes(x=x,y=y))+geom_point(color="blue")+ggtitle("Scatter Plot for Clustering Dataset")
+```
+
+## d.ii.Fit the dataset using the k-means algorithm from k=2 to k=12. Create a scatter plot of the resultant clusters for each value of k.
+
+## d.iii. As k-means is an unsupervised algorithm, you cannot compute the accuracy as there are no correct values to compare the output to. Instead, you will use the average distance from the center of each cluster as a measure of how well the model fits the data. To calculate this metric, simply compute the distance of each data point to the center of the cluster it is assigned to and take the average value of all of those distances.
+
+
+```{r}
+
+# scaling the data to standardize the values before applying K-means clustering
+cluster_df_scale <- scale(cluster_df)
+
+
+avg_distance_df <- data.frame(NA,NA)
+names(avg_distance_df) <- c("k","avg_dist")
+
+#######################################################################
+
+# Kmeans with k=2
+cluster_df_km2 <- kmeans(cluster_df_scale, centers=2,nstart=100)
+# Visualize the clustering algorithm results.
+df2_clusters<-cluster_df_km2$cluster
+# Adding a new column to the original dataset to plot scatter plot.
+cluster_df <- cluster_df %>% mutate(df2_clusters=df2_clusters)
+# Scatter plot for 2 clusters
+cluster_df %>% ggplot(aes(x=x,y=y,col=as.factor(df2_clusters)))+geom_point()+ 
+    guides(color = guide_legend(title = "Clusters"))+
+    ggtitle("Scatter plot for 2 Clusters")
+# Cluster Plot
+fviz_cluster(list(data=cluster_df, cluster = df2_clusters))
+
+# function to calculate average distance 
+kmdist <- function(data,km) {
+    sqrt(rowSums((data[,colnames(km$centers)] - fitted(km))^ 2))
+}
+
+# Calculating the average distance from center and adding it to avg_distance_df
+distance_cluster2 <- kmdist(cluster_df_scale, cluster_df_km2)
+avg_distance_df <- rbind(avg_distance_df,data.frame(k=2,avg_dist=mean(distance_cluster2)))
+
+#######################################################################
+
+# k=3
+cluster_df_km3 <- kmeans(cluster_df_scale, centers=3,nstart=100)
+
+# Visualize the clustering algorithm results.
+df3_clusters<-cluster_df_km3$cluster
+# Adding a new column to the original dataset to plot scatter plot.
+cluster_df <- cluster_df %>% mutate(df3_clusters=df3_clusters)
+# Scatter plot
+cluster_df %>% ggplot(aes(x=x,y=y,col=as.factor(df3_clusters)))+geom_point()+
+    guides(color = guide_legend(title = "Clusters"))+
+    ggtitle("Scatter plot for 3 Clusters")
+# Cluster Plot
+fviz_cluster(list(data=cluster_df, cluster = df3_clusters))
+# Calculating the average distance from center
+distance_cluster3 <- kmdist(cluster_df_scale, cluster_df_km3)
+avg_distance_df <- rbind(avg_distance_df,data.frame(k=3,avg_dist=mean(distance_cluster3)))
+
+#######################################################################
+
+# k=4
+cluster_df_km4 <- kmeans(cluster_df_scale, centers=4,nstart=100)
+# Visualize the clustering algorithm results.
+df4_clusters<-cluster_df_km4$cluster
+# Adding a new column to the original dataset to plot scatter plot.
+cluster_df <- cluster_df %>% mutate(df4_clusters=df4_clusters)
+# Scatter plot
+cluster_df %>% ggplot(aes(x=x,y=y,col=as.factor(df4_clusters)))+geom_point()+
+    guides(color = guide_legend(title = "Clusters"))+
+    ggtitle("Scatter plot for 4 Clusters")
+# Cluster Plot
+fviz_cluster(list(data=cluster_df, cluster = df4_clusters))
+# Calculating the average distance from center
+distance_cluster4 <- kmdist(cluster_df_scale, cluster_df_km4)
+avg_distance_df <- rbind(avg_distance_df,data.frame(k=4,avg_dist=mean(distance_cluster4)))
+
+#######################################################################
+
+
+# k=5
+cluster_df_km5 <- kmeans(cluster_df_scale, centers=5,nstart=100)
+# Visualize the clustering algorithm results.
+df5_clusters<-cluster_df_km5$cluster
+# Adding a new column to the original dataset to plot scatter plot.
+cluster_df <- cluster_df %>% mutate(df5_clusters=df5_clusters)
+# Scatter plot
+cluster_df %>% ggplot(aes(x=x,y=y,col=as.factor(df5_clusters)))+geom_point()+
+    guides(color = guide_legend(title = "Clusters"))+
+    ggtitle("Scatter plot for 5 Clusters")
+# Cluster Plot
+fviz_cluster(list(data=cluster_df, cluster = df5_clusters))
+
+# Calculating the average distance from center
+distance_cluster5 <- kmdist(cluster_df_scale, cluster_df_km5)
+avg_distance_df <- rbind(avg_distance_df,data.frame(k=5,avg_dist=mean(distance_cluster5)))
+
+#######################################################################
+
+# k=6
+cluster_df_km6 <- kmeans(cluster_df_scale, centers=6,nstart=100)
+# Visualize the clustering algorithm results.
+df6_clusters<-cluster_df_km6$cluster
+# Adding a new column to the original dataset to plot scatter plot.
+cluster_df <- cluster_df %>% mutate(df6_clusters=df6_clusters)
+# Scatter plot
+cluster_df %>% ggplot(aes(x=x,y=y,col=as.factor(df6_clusters)))+geom_point()+
+    guides(color = guide_legend(title = "Clusters"))+
+    ggtitle("Scatter plot for 6 Clusters")
+# Cluster Plot
+fviz_cluster(list(data=cluster_df, cluster = df6_clusters))
+# Calculating the average distance from center
+distance_cluster6 <- kmdist(cluster_df_scale, cluster_df_km6)
+avg_distance_df <- rbind(avg_distance_df,data.frame(k=6,avg_dist=mean(distance_cluster6)))
+
+
+#######################################################################
+
+# k=7
+cluster_df_km7 <- kmeans(cluster_df_scale, centers=7,nstart=100)
+# Visualize the clustering algorithm results.
+df7_clusters<-cluster_df_km7$cluster
+# Adding a new column to the original dataset to plot scatter plot.
+cluster_df <- cluster_df %>% mutate(df7_clusters=df7_clusters)
+# Scatter plot
+cluster_df %>% ggplot(aes(x=x,y=y,col=as.factor(df7_clusters)))+geom_point()+
+    guides(color = guide_legend(title = "Clusters"))+
+    ggtitle("Scatter plot for 7 Clusters")
+# Cluster Plot
+fviz_cluster(list(data=cluster_df, cluster = df7_clusters))
+# Calculating the average distance from center
+distance_cluster7 <- kmdist(cluster_df_scale, cluster_df_km7)
+avg_distance_df <- rbind(avg_distance_df,data.frame(k=7,avg_dist=mean(distance_cluster7)))
+
+#######################################################################
+
+# k=8
+cluster_df_km8 <- kmeans(cluster_df_scale, centers=8,nstart=100)
+# Visualize the clustering algorithm results.
+df8_clusters<-cluster_df_km8$cluster
+# Adding a new column to the original dataset to plot scatter plot.
+cluster_df <- cluster_df %>% mutate(df8_clusters=df8_clusters)
+# Scatter plot
+cluster_df %>% ggplot(aes(x=x,y=y,col=as.factor(df8_clusters)))+geom_point()+
+    guides(color = guide_legend(title = "Clusters"))+
+    ggtitle("Scatter plot for 8 Clusters")
+# Cluster Plot
+fviz_cluster(list(data=cluster_df, cluster = df8_clusters))
+# Calculating the average distance from center
+distance_cluster8 <- kmdist(cluster_df_scale, cluster_df_km8)
+avg_distance_df <- rbind(avg_distance_df,data.frame(k=8,avg_dist=mean(distance_cluster8)))
+
+#######################################################################
+
+# k=9
+cluster_df_km9 <- kmeans(cluster_df_scale, centers=9,nstart=100)
+# Visualize the clustering algorithm results.
+df9_clusters<-cluster_df_km9$cluster
+# Adding a new column to the original dataset to plot scatter plot.
+cluster_df <- cluster_df %>% mutate(df9_clusters=df9_clusters)
+# Scatter plot
+cluster_df %>% ggplot(aes(x=x,y=y,col=as.factor(df9_clusters)))+geom_point()+
+    guides(color = guide_legend(title = "Clusters"))+
+    ggtitle("Scatter plot for 9 Clusters")
+# Cluster Plot
+fviz_cluster(list(data=cluster_df, cluster = df9_clusters))
+# Calculating the average distance from center
+distance_cluster9 <- kmdist(cluster_df_scale, cluster_df_km9)
+avg_distance_df <- rbind(avg_distance_df,data.frame(k=9,avg_dist=mean(distance_cluster9)))
+
+#######################################################################
+
+# k=10
+cluster_df_km10 <- kmeans(cluster_df_scale, centers=10,nstart=100)
+# Visualize the clustering algorithm results.
+df10_clusters<-cluster_df_km10$cluster
+# Adding a new column to the original dataset to plot scatter plot.
+cluster_df <- cluster_df %>% mutate(df10_clusters=df10_clusters)
+# Scatter plot
+cluster_df %>% ggplot(aes(x=x,y=y,col=as.factor(df10_clusters)))+geom_point()+
+    guides(color = guide_legend(title = "Clusters"))+
+    ggtitle("Scatter plot for 10 Clusters")
+# Cluster Plot
+fviz_cluster(list(data=cluster_df, cluster = df10_clusters))
+# Calculating the average distance from center
+distance_cluster10 <- kmdist(cluster_df_scale, cluster_df_km10)
+avg_distance_df <- rbind(avg_distance_df,data.frame(k=10,avg_dist=mean(distance_cluster10)))
+
+#######################################################################
+
+# k=11
+cluster_df_km11 <- kmeans(cluster_df_scale, centers=11,nstart=100)
+# Visualize the clustering algorithm results.
+df11_clusters<-cluster_df_km11$cluster
+# Adding a new column to the original dataset to plot scatter plot.
+cluster_df <- cluster_df %>% mutate(df11_clusters=df11_clusters)
+# Scatter plot
+cluster_df %>% ggplot(aes(x=x,y=y,col=as.factor(df11_clusters)))+geom_point()+
+    guides(color = guide_legend(title = "Clusters"))+
+    ggtitle("Scatter plot for 11 Clusters")
+# Cluster Plot
+fviz_cluster(list(data=cluster_df, cluster = df11_clusters))
+# Calculating the average distance from center
+distance_cluster11 <- kmdist(cluster_df_scale, cluster_df_km11)
+avg_distance_df <- rbind(avg_distance_df,data.frame(k=11,avg_dist=mean(distance_cluster11)))
+
+#######################################################################
+
+# k=12
+cluster_df_km12 <- kmeans(cluster_df_scale, centers=12,nstart=100)
+# Visualize the clustering algorithm results.
+df12_clusters<-cluster_df_km12$cluster
+# Adding a new column to the original dataset to plot scatter plot.
+cluster_df <- cluster_df %>% mutate(df12_clusters=df12_clusters)
+# Scatter plot
+cluster_df %>% ggplot(aes(x=x,y=y,col=as.factor(df12_clusters)))+geom_point()+
+    guides(color = guide_legend(title = "Clusters"))+
+    ggtitle("Scatter plot for 12 Clusters")
+# Cluster Plot
+fviz_cluster(list(data=cluster_df, cluster = df12_clusters))
+
+
+# Calculating optimal number of clusters
+fviz_nbclust(cluster_df_scale, kmeans, method = "wss")+
+    geom_vline(xintercept = 5, linetype = 2)+
+    labs(subtitle = "Elbow method")
+
+# Calculating the average distance from center
+distance_cluster12 <- kmdist(cluster_df_scale, cluster_df_km12)
+avg_distance_df <- rbind(avg_distance_df,data.frame(k=12,avg_dist=mean(distance_cluster12)))
+
+```
+## e. Calculate this average distance from the center of each cluster for each value of k and plot it as a line chart where k is the x-axis and the average distance is the y-axis.
+
+```{r}
+# Calculation for Average distance was done in the results above for each value of K
+avg_distance_df <- na.omit(avg_distance_df)
+kbl(avg_distance_df,caption = "Average Distance dataframe", booktabs = T) %>% kable_styling(latex_options = c("striped", "hold_position"))
+
+avg_distance_df %>% ggplot(aes(k,avg_dist))+geom_point()+geom_line()+ggtitle("K vs Average Distance")+geom_vline(xintercept = 7, linetype = 2)+
+    labs(subtitle = "Finding optimal number of clusters using elbow method")
+
+```
+
+## f. One way of determining the “right” number of clusters is to look at the graph of k versus average distance and finding the “elbow point”. Looking at the graph you generated in the previous example, what is the elbow point for this dataset?
+```{r}
+# Solution: The results from the graph above indicates that k=7 may indicate the elbow point and can be optimal number of clusters while calculated using Average distance method. Using the fviz_nbclust on avg_distance_df indicates, k=4 may be optimal.
+fviz_nbclust(na.omit(avg_distance_df), kmeans, method = "wss")
+```
+
+
+# Session Info
+```{r}
+sessionInfo()
+```
